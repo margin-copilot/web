@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ApiError, type Api, type Proposal, type Status } from "./api";
-import { REGION_NAMES, decisionError } from "./messages";
+import { LOAD_FAILED, REGION_NAMES, decisionError } from "./messages";
 
 const APPROVERS = { manager: "Regional pricing manager", director: "Pricing director" } as const;
 const STATUSES: Status[] = ["pending", "approved", "rejected"];
@@ -11,33 +11,39 @@ export function Approvals({ api }: { api: Api }) {
   const [proposals, setProposals] = useState<Proposal[] | null>(null);
   const [deciding, setDeciding] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
 
+  // A failed load is said as such, never shown as an empty list.
   const load = useCallback(async () => {
     try {
       setProposals(await api.listProposals(status));
-    } catch (error) {
-      setProposals([]);
-      setNotice(decisionError(error));
+      setLoadFailed(false);
+    } catch {
+      setLoadFailed(true);
     }
   }, [api, status]);
 
   useEffect(() => {
     setNotice(null);
+    setProposals(null);
     void load();
   }, [load]);
 
   async function decide(proposal: Proposal, approve: boolean) {
     setDeciding(proposal.id);
     setNotice(null);
+    let reload = true;
     try {
       await api.decide(proposal, approve);
-      await load();
+      const what = `${proposal.product} (${REGION_NAMES[proposal.region]})`;
+      setNotice(`${approve ? "Approved" : "Rejected"}: ${what}.`);
     } catch (error) {
       setNotice(decisionError(error));
-      if (error instanceof ApiError && error.status === 409) await load();
+      reload = error instanceof ApiError && error.status === 409; // someone else decided it
     } finally {
       setDeciding(null);
     }
+    if (reload) await load(); // a failed reload shows its own message, never the decision's
   }
 
   return (
@@ -57,8 +63,15 @@ export function Approvals({ api }: { api: Api }) {
           {notice}
         </p>
       )}
+      {loadFailed && (
+        <p className="notice" role="alert">
+          {LOAD_FAILED}
+        </p>
+      )}
       {proposals === null ? (
-        <p className="meta">Loading…</p>
+        loadFailed ? null : (
+          <p className="meta">Loading…</p>
+        )
       ) : proposals.length === 0 ? (
         <p className="meta">No {LABELS[status].toLowerCase()} proposals.</p>
       ) : (
@@ -83,12 +96,18 @@ export function Approvals({ api }: { api: Api }) {
               </dl>
               {p.status === "pending" && (
                 <div className="proposal-actions">
-                  <button type="button" disabled={deciding === p.id} onClick={() => void decide(p, true)}>
+                  <button
+                    type="button"
+                    aria-label={`Approve ${p.product} (${REGION_NAMES[p.region]})`}
+                    disabled={deciding === p.id}
+                    onClick={() => void decide(p, true)}
+                  >
                     Approve
                   </button>
                   <button
                     type="button"
                     className="secondary"
+                    aria-label={`Reject ${p.product} (${REGION_NAMES[p.region]})`}
                     disabled={deciding === p.id}
                     onClick={() => void decide(p, false)}
                   >

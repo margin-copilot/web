@@ -91,3 +91,10 @@ test("test_signing_out_clears_the_conversation", async () => {
   expect(screen.queryByText(REPLY.answer)).toBeNull();
   expect(screen.getByRole("button", { name: "Sign in with Microsoft" })).toBeInTheDocument();
 });
+
+
+test("test_new_answers_are_announced", () => {
+  render(<Chat api={fakeApi()} />);
+  const log = screen.getByRole("log");
+  expect(log).toHaveAttribute("aria-live", "polite");
+});

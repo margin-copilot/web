@@ -4,6 +4,7 @@ import { createApi } from "./api";
 import { App } from "./App";
 import { createMsal, msalAuth, tokenSource } from "./auth";
 import { loadConfig } from "./config";
+import { startupError } from "./messages";
 import "./styles.css";
 
 async function start() {
@@ -21,4 +22,12 @@ async function start() {
   );
 }
 
-void start();
+start().catch((error: unknown) => {
+  // A cancelled or refused sign-in, or a missing setting: say so instead of a blank page.
+  createRoot(document.getElementById("root")!).render(
+    <main className="signed-out">
+      <h1>Margin Copilot</h1>
+      <p role="alert">{startupError(error)}</p>
+    </main>,
+  );
+});

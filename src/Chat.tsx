@@ -53,7 +53,7 @@ export function Chat({ api }: { api: Api }) {
 
   return (
     <section className="chat" aria-label="Chat">
-      <ol className="messages">
+      <ol className="messages" role="log" aria-live="polite">
         {messages.map((message, index) => (
           <li key={index} className={`message ${message.role}`}>
             {message.role === "assistant" ? <Answer reply={message.reply} /> : <p>{message.text}</p>}

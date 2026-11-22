@@ -1,4 +1,4 @@
-import { InteractionRequiredAuthError } from "@azure/msal-browser";
+import { CacheLookupPolicy, InteractionRequiredAuthError } from "@azure/msal-browser";
 import { tokenSource } from "./auth";
 
 type Request = { scopes: string[] };
@@ -24,4 +24,12 @@ test("test_an_interaction_required_error_redirects_to_sign_in", async () => {
   });
   await expect(tokenSource(msal as never)("api://proposals-api/access_as_user")).rejects.toThrow();
   expect(msal.acquireTokenRedirect.mock.calls[0]?.[0].scopes).toEqual(["api://proposals-api/access_as_user"]);
+});
+
+
+test("test_silent_renewal_never_uses_a_hidden_frame", async () => {
+  const msal = fakeMsal(async () => ({ accessToken: "t" }));
+  await tokenSource(msal as never)("api://orchestrator/access_as_user");
+  const request = msal.acquireTokenSilent.mock.calls[0]?.[0] as { cacheLookupPolicy?: number };
+  expect(request.cacheLookupPolicy).toBe(CacheLookupPolicy.AccessTokenAndRefreshToken);
 });

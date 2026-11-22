@@ -1,6 +1,7 @@
 // Microsoft sign-in with MSAL.js (D-042): redirect flow, tokens cached for this tab only, and one
 // access token per service, asked for by its own scope.
 import {
+  CacheLookupPolicy,
   InteractionRequiredAuthError,
   PublicClientApplication,
   type AccountInfo,
@@ -40,7 +41,10 @@ export function tokenSource(msal: TokenClient): TokenSource {
       throw new Error("sign-in required");
     }
     try {
-      return (await msal.acquireTokenSilent({ scopes: [scope], account })).accessToken;
+      // Cache and refresh token only: a hidden-frame renewal would fail under the CSP and time out
+      // instead of asking the user to sign in again.
+      const request = { scopes: [scope], account, cacheLookupPolicy: CacheLookupPolicy.AccessTokenAndRefreshToken };
+      return (await msal.acquireTokenSilent(request)).accessToken;
     } catch (error) {
       if (error instanceof InteractionRequiredAuthError) {
         await msal.acquireTokenRedirect({ scopes: [scope], account });
