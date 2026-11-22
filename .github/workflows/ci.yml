@@ -27,3 +27,18 @@ jobs:
           tar -xzf "$tarball" gitleaks
       - name: Scan full history
         run: ./gitleaks git --redact --verbose .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
