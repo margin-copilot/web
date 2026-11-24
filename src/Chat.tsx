@@ -69,7 +69,8 @@ export function Chat({ api }: { api: Api }) {
           </li>
         ))}
         {busy && lead && (
-          <li className="message assistant">
+          // Not announced: the final answer leads with the same text, and the steps announce progress.
+          <li className="message assistant" aria-hidden="true">
             <p>{lead}</p>
           </li>
         )}

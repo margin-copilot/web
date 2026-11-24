@@ -136,6 +136,15 @@ test("test_the_early_reply_shows_before_the_answer", async () => {
   await screen.findByText(REPLY.answer);
 });
 
+test("test_the_early_reply_is_not_announced_since_the_answer_repeats_it", async () => {
+  const { api } = streamingApi([{ step: "data-agent" }, { lead: "North dairy margin fell." }], REPLY);
+  render(<Chat api={api} />);
+  await ask("q");
+  const early = (await screen.findByText("North dairy margin fell.")).closest("li");
+  expect(early).toHaveAttribute("aria-hidden", "true");
+  expect(screen.getByText("Checking the sales data…").closest("li")).not.toHaveAttribute("aria-hidden");
+});
+
 test("test_the_final_answer_replaces_the_early_reply", async () => {
   const final = { ...REPLY, answer: "From the sales data: X\n\nFrom the policies: Y" };
   const { api, release } = streamingApi([{ lead: "X" }], final);
