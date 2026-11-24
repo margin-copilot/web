@@ -51,3 +51,24 @@ test("test_errors_carry_the_api_reason", async () => {
   const api = createApi(CONFIG, async () => "t", fakeFetch(403, { error: "needs the pricing director" }));
   await expect(api.decide(PROPOSAL as never, true)).rejects.toEqual(new ApiError(403, "needs the pricing director"));
 });
+
+test("test_warm_posts_once_with_the_orchestrator_token_and_never_throws", async () => {
+  const fetchFn = fakeFetch(500, { error: "boom" });
+  const token = vi.fn(async (scope: string) => `token for ${scope}`);
+  await expect(createApi(CONFIG, token, fetchFn).warm()).resolves.toBeUndefined();
+  expect(fetchFn).toHaveBeenCalledTimes(1);
+  const [url, init] = fetchFn.mock.calls[0];
+  expect(url).toBe("https://orchestrator.example/warm");
+  expect(init?.method).toBe("POST");
+  expect((init?.headers as Record<string, string>).Authorization).toBe(
+    "Bearer token for api://orchestrator/access_as_user",
+  );
+});
+
+test("test_warm_survives_a_network_failure", async () => {
+  const fetchFn = vi.fn(async () => {
+    throw new TypeError("Failed to fetch");
+  });
+  const api = createApi(CONFIG, async () => "t", fetchFn as unknown as typeof fetch);
+  await expect(api.warm()).resolves.toBeUndefined();
+});

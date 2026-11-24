@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Api } from "./api";
 import { Approvals } from "./Approvals";
 import type { AuthPort } from "./auth";
@@ -9,6 +9,15 @@ type Tab = "chat" | "approvals";
 export function App({ auth, api }: { auth: AuthPort; api: Api }) {
   const [account, setAccount] = useState(auth.account);
   const [tab, setTab] = useState<Tab>("chat");
+  const warmed = useRef(false);
+
+  // Wake the agents and the database while the user reads the screen (D-044).
+  useEffect(() => {
+    if (account && !warmed.current) {
+      warmed.current = true;
+      void api.warm();
+    }
+  }, [account, api]);
 
   if (!account) {
     return (

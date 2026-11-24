@@ -34,6 +34,8 @@ export interface Api {
   chat(question: string, conversationId?: string): Promise<ChatReply>;
   listProposals(status: Status): Promise<Proposal[]>;
   decide(proposal: Proposal, approve: boolean): Promise<Proposal>;
+  /** Wakes the copilot's services after sign-in (D-044); resolves on any outcome. */
+  warm(): Promise<void>;
 }
 
 export class ApiError extends Error {
@@ -89,6 +91,13 @@ export function createApi(config: Config, token: TokenSource, fetchFn: typeof fe
   }
 
   return {
+    async warm() {
+      try {
+        await call(`${config.orchestratorUrl}/warm`, config.orchestratorScope, "POST");
+      } catch {
+        // best effort: the first question works either way, only slower
+      }
+    },
     async chat(question, conversationId) {
       const body = conversationId ? { question, conversation_id: conversationId } : { question };
       const reply = await call(`${config.orchestratorUrl}/chat`, config.orchestratorScope, "POST", body);

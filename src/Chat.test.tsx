@@ -11,7 +11,7 @@ function fakeApi(...replies: Array<ChatReply | ApiError>) {
     if (next instanceof ApiError) throw next;
     return next;
   });
-  return { chat, listProposals: vi.fn(async () => []), decide: vi.fn() } as unknown as Api & {
+  return { chat, listProposals: vi.fn(async () => []), decide: vi.fn(), warm: vi.fn(async () => undefined) } as unknown as Api & {
     chat: typeof chat;
   };
 }
