@@ -10,6 +10,7 @@ Part of **Margin Copilot**, a secure multi-agent pricing assistant on Azure, bui
 
 - **Sign-in:** Microsoft (MSAL.js, redirect flow). Tokens are cached for this browser tab only. Each call carries a token for its own service: the orchestrator's for chat, proposals-api's for approvals.
 - **Chat:**
+  - once after sign-in, posts the orchestrator's `/warm` so the agents and the database wake while you type (D-044); a failure is ignored;
   - posts to the orchestrator's `/chat`;
   - keeps the returned `conversation_id` for follow-ups, and **New conversation** starts over;
   - shows each answer as plain text, with its citations, the agents that answered and any refusal ("Not in your access", "No data recorded", "Outside what I cover").
