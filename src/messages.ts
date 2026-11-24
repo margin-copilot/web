@@ -7,6 +7,15 @@ export const REFUSALS = {
   no_access: "Not in your access",
   no_data: "No data recorded",
 } as const;
+/** What the chat shows while a streamed turn runs (D-045), by the stage the orchestrator reports. */
+export const STEP_LABELS: Record<string, string> = {
+  condense: "Reading your follow-up…",
+  route: "Reading the question…",
+  "data-agent": "Checking the sales data…",
+  "policy-agent": "Checking the policies…",
+  "action-agent": "Preparing the draft…",
+  compose: "Putting the answer together…",
+};
 export const CONVERSATION_ENDED = "That conversation has ended. Your next question starts a new one.";
 
 const SIGN_IN_EXPIRED = "Your sign-in has expired. Sign out and sign in again.";

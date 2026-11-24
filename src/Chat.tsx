@@ -1,6 +1,6 @@
 import { useState, type FormEvent, type KeyboardEvent } from "react";
-import { ApiError, type Api, type ChatReply } from "./api";
-import { REFUSALS, chatError } from "./messages";
+import { ApiError, type Api, type ChatReply, type Progress } from "./api";
+import { REFUSALS, STEP_LABELS, chatError } from "./messages";
 
 const MAX_QUESTION = 2000;
 const AGENT_NAMES: Record<string, string> = {
@@ -19,6 +19,8 @@ export function Chat({ api }: { api: Api }) {
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<string | undefined>();
+  const [lead, setLead] = useState<string | undefined>();
 
   async function send(event?: FormEvent) {
     event?.preventDefault();
@@ -28,7 +30,7 @@ export function Chat({ api }: { api: Api }) {
     setBusy(true);
     setMessages((m) => [...m, { role: "user", text: question }]);
     try {
-      const reply = await api.chat(question, conversationId);
+      const reply = await api.chat(question, conversationId, onProgress);
       setConversationId(reply.conversation_id);
       setMessages((m) => [...m, { role: "assistant", reply }]);
     } catch (error) {
@@ -36,7 +38,14 @@ export function Chat({ api }: { api: Api }) {
       setMessages((m) => [...m, { role: "error", text: chatError(error) }]);
     } finally {
       setBusy(false);
+      setStep(undefined);
+      setLead(undefined);
     }
+  }
+
+  function onProgress(progress: Progress) {
+    if ("lead" in progress) setLead(progress.lead);
+    else if (progress.step in STEP_LABELS) setStep(progress.step);
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -59,9 +68,14 @@ export function Chat({ api }: { api: Api }) {
             {message.role === "assistant" ? <Answer reply={message.reply} /> : <p>{message.text}</p>}
           </li>
         ))}
+        {busy && lead && (
+          <li className="message assistant">
+            <p>{lead}</p>
+          </li>
+        )}
         {busy && (
           <li className="message waiting">
-            <p>Thinking… the first question after a quiet spell can take up to a minute.</p>
+            <p>{step ? STEP_LABELS[step] : "Thinking… the first question after a quiet spell can take up to a minute."}</p>
           </li>
         )}
       </ol>

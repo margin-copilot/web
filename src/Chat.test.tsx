@@ -4,6 +4,7 @@ import { ApiError, type Api, type ChatReply } from "./api";
 import { App } from "./App";
 import { Chat } from "./Chat";
 import { REPLY } from "./fixtures";
+import { CONVERSATION_ENDED } from "./messages";
 
 function fakeApi(...replies: Array<ChatReply | ApiError>) {
   const chat = vi.fn(async (_question: string, _conversationId?: string) => {
@@ -97,4 +98,70 @@ test("test_new_answers_are_announced", () => {
   render(<Chat api={fakeApi()} />);
   const log = screen.getByRole("log");
   expect(log).toHaveAttribute("aria-live", "polite");
+});
+
+type Progress = { step: string } | { lead: string };
+
+/** A chat call that reports `progress`, then waits for `release()` before it answers or fails. */
+function streamingApi(progress: Progress[], outcome: ChatReply | ApiError) {
+  let release = () => {};
+  const released = new Promise<void>((resolve) => (release = resolve));
+  const chat = vi.fn(async (_q: string, _c?: string, onProgress?: (p: Progress) => void) => {
+    progress.forEach((p) => onProgress?.(p));
+    await released;
+    if (outcome instanceof ApiError) throw outcome;
+    return outcome;
+  });
+  const api = { chat, listProposals: vi.fn(async () => []), decide: vi.fn(), warm: vi.fn(async () => undefined) };
+  return { api: api as unknown as Api, release };
+}
+
+test("test_the_step_label_replaces_the_waiting_text", async () => {
+  const { api, release } = streamingApi([{ step: "route" }, { step: "data-agent" }], REPLY);
+  render(<Chat api={api} />);
+  await ask("q");
+  expect(await screen.findByText("Checking the sales data…")).toBeInTheDocument();
+  expect(screen.queryByText(/^Thinking/)).toBeNull();
+  release();
+  expect(await screen.findByText(REPLY.answer)).toBeInTheDocument();
+  expect(screen.queryByText("Checking the sales data…")).toBeNull();
+});
+
+test("test_the_early_reply_shows_before_the_answer", async () => {
+  const { api, release } = streamingApi([{ step: "data-agent" }, { lead: "North dairy margin fell." }], REPLY);
+  render(<Chat api={api} />);
+  await ask("q");
+  expect(await screen.findByText("North dairy margin fell.")).toBeInTheDocument();
+  release();
+  await screen.findByText(REPLY.answer);
+});
+
+test("test_the_final_answer_replaces_the_early_reply", async () => {
+  const final = { ...REPLY, answer: "From the sales data: X\n\nFrom the policies: Y" };
+  const { api, release } = streamingApi([{ lead: "X" }], final);
+  render(<Chat api={api} />);
+  await ask("q");
+  expect(await screen.findByText("X")).toBeInTheDocument();
+  release();
+  expect(await screen.findByText(/From the sales data: X/)).toBeInTheDocument();
+  expect(screen.queryByText("X")).toBeNull();
+});
+
+test("test_an_early_reply_is_shown_as_text_never_as_html", async () => {
+  const hostile = "<img src=x onerror=alert(1)>";
+  const { api } = streamingApi([{ lead: hostile }], REPLY);
+  const { container } = render(<Chat api={api} />);
+  await ask("q");
+  expect(await screen.findByText(hostile)).toBeInTheDocument();
+  expect(container.querySelector("img")).toBeNull();
+});
+
+test("test_an_error_event_shows_the_same_message_as_a_json_error", async () => {
+  const { api, release } = streamingApi([{ lead: "North dairy margin fell." }], new ApiError(404, "conversation not found"));
+  render(<Chat api={api} />);
+  await ask("q");
+  await screen.findByText("North dairy margin fell.");
+  release();
+  expect(await screen.findByText(CONVERSATION_ENDED)).toBeInTheDocument();
+  expect(screen.queryByText("North dairy margin fell.")).toBeNull();
 });

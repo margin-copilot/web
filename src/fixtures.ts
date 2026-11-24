@@ -21,3 +21,14 @@ export const PROPOSAL = {
   proposed_by: "oid",
   proposed_at: "2026-11-22T09:00:00Z",
 };
+
+/** A response body that yields these chunks, as the network might split them. */
+export function streamOf(...chunks: string[]): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    start(controller) {
+      for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+      controller.close();
+    },
+  });
+}
