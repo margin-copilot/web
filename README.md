@@ -39,7 +39,7 @@ npm run build      # dist/; needs VITE_ORCHESTRATOR_URL and VITE_PROPOSALS_API_U
 
 ## Deploy
 
-A push to `main` runs the `build` workflow: test, then deploy. The deploy job signs in to Azure through GitHub OIDC (a federated identity with rights on the Static Web App only), reads the deployment token at run time (masked, never stored), runs `swa deploy`, and checks the live site: status 200 and a CSP with the two exact origins and no wildcard. Repository secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `STATIC_WEB_APP_NAME` and the six `VITE_*` settings. `infra/scripts/deploy-web.sh site` still deploys from a laptop.
+A push to `main` runs the `build` workflow: test, build, deploy. The build job has the real settings but cannot request an Azure token; it builds `dist/` (with the generated CSP) and passes it on as a one-day artifact, deleted after the deploy. The deploy job installs the lockfile's pinned SWA CLI with install scripts off, signs in to Azure through GitHub OIDC (a federated identity with rights on the Static Web App only), reads the deployment token at run time (masked, never stored), runs `swa deploy`, and checks the live site: status 200 and a CSP with the two exact origins and no wildcard. Repository secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `STATIC_WEB_APP_NAME` and the six `VITE_*` settings. `infra/scripts/deploy-web.sh` (no arguments) still deploys from a laptop.
 
 ## License
 

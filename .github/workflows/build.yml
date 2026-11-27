@@ -18,7 +18,7 @@ jobs:
       VITE_ORCHESTRATOR_URL: https://orchestrator.example
       VITE_PROPOSALS_API_URL: https://proposals.example
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-node@v7.1.0
@@ -29,9 +29,41 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
-  deploy:
+  # builds with the real settings (the test job uses placeholders) in a job that cannot
+  # request an Azure token, so no npm install script or build plugin runs next to one
+  build:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VITE_TENANT_ID: ${{ secrets.VITE_TENANT_ID }}
+      VITE_CLIENT_ID: ${{ secrets.VITE_CLIENT_ID }}
+      VITE_ORCHESTRATOR_URL: ${{ secrets.VITE_ORCHESTRATOR_URL }}
+      VITE_ORCHESTRATOR_SCOPE: ${{ secrets.VITE_ORCHESTRATOR_SCOPE }}
+      VITE_PROPOSALS_API_URL: ${{ secrets.VITE_PROPOSALS_API_URL }}
+      VITE_PROPOSALS_SCOPE: ${{ secrets.VITE_PROPOSALS_SCOPE }}
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - id: upload
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: site
+          path: dist
+          if-no-files-found: error
+          retention-days: 1
+  deploy:
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -43,22 +75,23 @@ jobs:
     env:
       SITE: ${{ secrets.STATIC_WEB_APP_NAME }}
       RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
-      VITE_TENANT_ID: ${{ secrets.VITE_TENANT_ID }}
-      VITE_CLIENT_ID: ${{ secrets.VITE_CLIENT_ID }}
       VITE_ORCHESTRATOR_URL: ${{ secrets.VITE_ORCHESTRATOR_URL }}
-      VITE_ORCHESTRATOR_SCOPE: ${{ secrets.VITE_ORCHESTRATOR_SCOPE }}
       VITE_PROPOSALS_API_URL: ${{ secrets.VITE_PROPOSALS_API_URL }}
-      VITE_PROPOSALS_SCOPE: ${{ secrets.VITE_PROPOSALS_SCOPE }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         with:
           persist-credentials: false
       - uses: actions/setup-node@v7.1.0
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
-      - run: npm run build
+      # the lockfile's pinned SWA CLI, install scripts off: no package code runs before
+      # the deploy step, and swa deploy needs none (keytar is only for interactive login)
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          name: site
+          path: dist
       - uses: azure/login@v3.1.0
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -86,3 +119,15 @@ jobs:
           for i in 1 2 3 4 5 6; do ok && exit 0; sleep 10; done
           echo "smoke failed: status, exact origins or wildcard check"
           exit 1
+  # the artifact holds the built site with its settings; remove it once deployed
+  cleanup:
+    needs: [build, deploy]
+    if: always() && needs.build.outputs.artifact-id != ''
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - run: gh api -X DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$ARTIFACT_ID"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_ID: ${{ needs.build.outputs.artifact-id }}
