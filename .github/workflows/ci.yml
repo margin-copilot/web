@@ -19,11 +19,9 @@ jobs:
           fetch-depth: 0
       - name: Install gitleaks (checksum verified)
         run: |
-          base="https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}"
           tarball="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          curl -sSfLO "$base/$tarball"
-          curl -sSfLO "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt"
-          sha256sum --check --ignore-missing "gitleaks_${GITLEAKS_VERSION}_checksums.txt"
+          curl -sSfLO "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/$tarball"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  gitleaks_8.30.1_linux_x64.tar.gz" | sha256sum --check
           tar -xzf "$tarball" gitleaks
       - name: Scan full history
         run: ./gitleaks git --redact --verbose .
