@@ -1,0 +1,86 @@
+name: build
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+# whole runs, not only deploy jobs, so main deploys in push order; a newer
+# waiting run replaces an older waiting one
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      # placeholders: the test build only checks that the CSP can be generated
+      VITE_ORCHESTRATOR_URL: https://orchestrator.example
+      VITE_PROPOSALS_API_URL: https://proposals.example
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+  deploy:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    env:
+      SITE: ${{ secrets.STATIC_WEB_APP_NAME }}
+      RG: ${{ secrets.AZURE_RESOURCE_GROUP }}
+      VITE_TENANT_ID: ${{ secrets.VITE_TENANT_ID }}
+      VITE_CLIENT_ID: ${{ secrets.VITE_CLIENT_ID }}
+      VITE_ORCHESTRATOR_URL: ${{ secrets.VITE_ORCHESTRATOR_URL }}
+      VITE_ORCHESTRATOR_SCOPE: ${{ secrets.VITE_ORCHESTRATOR_SCOPE }}
+      VITE_PROPOSALS_API_URL: ${{ secrets.VITE_PROPOSALS_API_URL }}
+      VITE_PROPOSALS_SCOPE: ${{ secrets.VITE_PROPOSALS_SCOPE }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: azure/login@v3.1.0
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy
+        run: |
+          token=$(az staticwebapp secrets list -n "$SITE" -g "$RG" --query properties.apiKey -o tsv)
+          echo "::add-mask::$token"
+          SWA_CLI_DEPLOYMENT_TOKEN="$token" npx --no-install swa deploy dist --env production
+      - name: Smoke
+        run: |
+          host=$(az staticwebapp show -n "$SITE" -g "$RG" --query defaultHostname -o tsv)
+          echo "::add-mask::$host"
+          ok() {
+            headers=$(curl -sI "https://$host") || return 1
+            head -n1 <<<"$headers" | grep -q " 200" || return 1
+            csp=$(grep -i '^content-security-policy:' <<<"$headers") || return 1
+            grep -qF "${VITE_ORCHESTRATOR_URL%/}" <<<"$csp" && grep -qF "${VITE_PROPOSALS_API_URL%/}" <<<"$csp" \
+              && ! grep -qF '*' <<<"$csp"
+          }
+          # the new content can take a short while to reach the site
+          for i in 1 2 3 4 5 6; do ok && exit 0; sleep 10; done
+          echo "smoke failed: status, exact origins or wildcard check"
+          exit 1

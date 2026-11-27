@@ -1,7 +1,7 @@
-import config from "../public/staticwebapp.config.json";
+import config from "../staticwebapp.config.template.json";
 
 const CSP =
-  "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://login.microsoftonline.com https://*.azurecontainerapps.io; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
+  "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://login.microsoftonline.com __API_ORIGINS__; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
 
 test("test_the_static_web_app_config_sets_the_csp", () => {
   expect(config.globalHeaders["Content-Security-Policy"]).toBe(CSP);

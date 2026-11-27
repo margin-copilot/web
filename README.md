@@ -20,7 +20,7 @@ Part of **Margin Copilot**, a secure multi-agent pricing assistant on Azure, bui
   - a refusal is explained in plain words (for example "Only the pricing director can approve this one").
 - **Security:**
   - text from the services is never rendered as HTML;
-  - the Static Web App sends a strict Content Security Policy (`public/staticwebapp.config.json`);
+  - the Static Web App sends a strict Content Security Policy. `staticwebapp.config.template.json` holds it; `npm run build` writes `dist/staticwebapp.config.json` with `connect-src` naming the exact origins of the orchestrator and proposals-api (no wildcard host). The build fails if either URL is missing, is not https, or has a path;
   - the app has no secret: it's a public client.
 
 ## Settings
@@ -34,8 +34,12 @@ npm ci
 npm run dev        # http://localhost:5173, with .env filled in
 npm run typecheck
 npm test
-npm run build      # dist/, deployed by infra/scripts/deploy-web.sh
+npm run build      # dist/; needs VITE_ORCHESTRATOR_URL and VITE_PROPOSALS_API_URL exported (not only in .env)
 ```
+
+## Deploy
+
+A push to `main` runs the `build` workflow: test, then deploy. The deploy job signs in to Azure through GitHub OIDC (a federated identity with rights on the Static Web App only), reads the deployment token at run time (masked, never stored), runs `swa deploy`, and checks the live site: status 200 and a CSP with the two exact origins and no wildcard. Repository secrets: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`, `AZURE_RESOURCE_GROUP`, `STATIC_WEB_APP_NAME` and the six `VITE_*` settings. `infra/scripts/deploy-web.sh site` still deploys from a laptop.
 
 ## License
 

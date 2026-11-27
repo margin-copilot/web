@@ -1,6 +1,6 @@
 {
   "name": "margin-copilot-web",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Margin Copilot web app: Microsoft sign-in, chat and approvals.",
@@ -10,7 +10,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/write-config.mjs",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run"
   },
