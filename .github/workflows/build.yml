@@ -66,6 +66,8 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - name: Deploy
         run: |
+          # swa prints the site URL when it finishes
+          echo "::add-mask::$(az staticwebapp show -n "$SITE" -g "$RG" --query defaultHostname -o tsv)"
           token=$(az staticwebapp secrets list -n "$SITE" -g "$RG" --query properties.apiKey -o tsv)
           echo "::add-mask::$token"
           SWA_CLI_DEPLOYMENT_TOKEN="$token" npx --no-install swa deploy dist --env production
